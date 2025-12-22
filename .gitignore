@@ -1,0 +1,61 @@
+# Python Standard
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE Settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project Specific - Runtime & Logs
+daily_runs*/
+intraday_runs*/
+backup/
+logs/
+cache/
+data/
+
+# Backup Folders
+01 backup_step_test/
+02 backup_active_buy_B1M500K_S500K500K/
+03 backup_active_buy_B1M1M_S500K500K-best/
+
+# Temporary / OS
+*.bak
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+
+# Results & Model Outputs (Large Files)
+results_backtest_*/
+results_hybrid_*/
+tensorboard_logs/

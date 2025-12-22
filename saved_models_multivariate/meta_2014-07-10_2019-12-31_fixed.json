@@ -1,0 +1,35 @@
+{
+  "model_type": "multivariate",
+  "train_start": "2014-07-10",
+  "train_end": "2019-12-31",
+  "lookback": 10,
+  "n_features": 5,
+  "feature_columns": [
+    "Adj Close",
+    "Volume_Log",
+    "K",
+    "D",
+    "MACD_Hist"
+  ],
+  "price_min": 7410.34,
+  "price_max": 11700.77,
+  "dropout_rate": 0.05,
+  "lstm_units": 50,
+  "training_timestamp": "2025-12-22T13:49:32.944226",
+  "technical_indicators": {
+    "kd_params": [
+      9,
+      3,
+      3
+    ],
+    "macd_params": [
+      12,
+      26,
+      9
+    ]
+  },
+  "metrics": {
+    "rmse": 104.22,
+    "r2": -1.0488
+  }
+}
