@@ -123,7 +123,7 @@ def interactive_select_csv(csv_files: list, default_index: int = -1) -> str:
 # =============================================================================
 def load_latest_backtest_status(backtest_start: str = None, interactive: bool = False) -> dict:
     """
-    讀取回測 daily_action_strat2 CSV，取得持倉狀態
+    讀取回測 daily_action_strat1 CSV (Strategy 1: Leverage Mode)，取得持倉狀態與槓桿資訊
     
     Args:
         backtest_start: 可選，指定回測起始日期 (格式: YYYYMMDD 或 YYYY-MM-DD)
@@ -138,12 +138,16 @@ def load_latest_backtest_status(backtest_start: str = None, interactive: bool = 
         'ai_position_count': 0,
         'dca_position_count': 0,
         'total_position_count': 0,
+        'leveraged_mode': False,
+        'current_leverage': 1.0,
+        'positions_2x': 0,
+        'peak_price': 0.0,
         'last_action': 'N/A',
         'last_note': 'N/A'
     }
     
-    # 尋找 daily_action CSV
-    pattern = os.path.join(BACKTEST_RESULTS_PATH, 'daily_action_strat2_*.csv')
+    # 尋找 daily_action CSV (Strat 1)
+    pattern = os.path.join(BACKTEST_RESULTS_PATH, 'daily_action_strat1_*.csv')
     csv_files = glob.glob(pattern)
     
     if not csv_files:
@@ -180,6 +184,21 @@ def load_latest_backtest_status(backtest_start: str = None, interactive: bool = 
             return result
         
         last_row = df.iloc[-1]
+        
+        # 計算目前的 Peak Price (依照 Strategy 1 邏輯)
+        # 邏輯: 非槓桿模式時，更新最高價；槓桿模式時，最高價鎖定 (作為出場基準)
+        current_peak_price = 0
+        for _, row in df.iterrows():
+            if 'leveraged_mode' in row:
+                is_leveraged = bool(row['leveraged_mode'])
+                price = float(row['price'])
+                if not is_leveraged:
+                    if price > current_peak_price:
+                        current_peak_price = price
+            else:
+                current_peak_price = max(current_peak_price, float(row['price']))
+
+        # Update Result
         result.update({
             'found': True,
             'csv_file': os.path.basename(target_csv),
@@ -187,25 +206,28 @@ def load_latest_backtest_status(backtest_start: str = None, interactive: bool = 
             'ai_position_count': int(last_row.get('ai_position_count', 0)),
             'dca_position_count': int(last_row.get('dca_position_count', 0)),
             'total_position_count': int(last_row.get('total_position_count', 0)),
+            'leveraged_mode': bool(last_row.get('leveraged_mode', False)),
+            'current_leverage': float(last_row.get('current_leverage', 1.0)),
+            'positions_2x': int(last_row.get('positions_2x', 0)),
+            'peak_price': current_peak_price,
             'last_action': last_row.get('ai_action', 'N/A'),
             'last_note': last_row.get('note', 'N/A'),
             'open_positions': []
         })
         
-        # 嘗試讀取 open_positions CSV
-        pos_csv = target_csv.replace('daily_action_strat2_', 'open_positions_strat2_')
+        # 嘗試讀取 open_positions CSV (Strat 1)
+        pos_csv = target_csv.replace('daily_action_strat1_', 'open_positions_strat1_')
         if os.path.exists(pos_csv):
             pos_df = pd.read_csv(pos_csv)
             result['open_positions'] = pos_df.to_dict('records')
             print(f"  未平倉持倉: {len(result['open_positions'])} 筆")
-            for p in result['open_positions']:
-                print(f"    - {p.get('buy_date', 'N/A')}: 買入 {p.get('buy_price', 0):,.2f}")
         else:
             print(f"  ⚠️ 找不到未平倉持倉檔案: {os.path.basename(pos_csv)}")
-            print(f"     請重新執行回測以生成此檔案")
         
+        leverage_status = "🔥 ON (2x)" if result['leveraged_mode'] else "OFF (1x)"
         print(f"  最後日期: {result['last_date']}")
         print(f"  持倉狀態: 總{result['total_position_count']}倉 (DCA{result['dca_position_count']} + AI{result['ai_position_count']})")
+        print(f"  槓桿狀態: {leverage_status} | Peak: {current_peak_price:,.2f}")
         
     except Exception as e:
         print(f"[Error] 讀取回測 CSV 失敗: {e}")
@@ -588,6 +610,29 @@ def generate_intraday_report(workspace: dict, df: pd.DataFrame, res: dict, date_
     lines.append(f"🎯 [濾網狀態] {filter_icon} {'通過' if filter_status else '未通過 (非突破日)'}")
     lines.append("-" * 50)
     
+    # 槓桿狀態 (Strategy 1 Only)
+    if backtest_status and 'leveraged_mode' in backtest_status:
+        lev_mode = backtest_status['leveraged_mode']
+        peak_price = backtest_status.get('peak_price', 0)
+        
+        lev_icon = "🔥" if lev_mode else "❄️"
+        lev_str = "ON (2倍槓桿)" if lev_mode else "OFF (1倍槓桿)"
+        
+        lines.append(f"⚡ [2x 槓桿監控] (Strategy 1)")
+        lines.append(f"   狀態: {lev_icon} {lev_str}")
+        
+        if peak_price > 0:
+            current_close = float(c)
+            dd_pct = (current_close - peak_price) / peak_price
+            lines.append(f"   高點: {peak_price:,.2f} | 目前跌幅: {dd_pct*100:.2f}%")
+            if not lev_mode:
+                trigger_price = peak_price * 0.92  # 8% threshold
+                dist_to_trigger = (current_close - trigger_price) / current_close
+                lines.append(f"   觸發: {trigger_price:,.2f} (距離: {dist_to_trigger*100:.2f}%)")
+            else:
+                lines.append(f"   退出: {peak_price:,.2f} (回到高點即退出)")
+        lines.append("-" * 50)
+
     # LSTM
     lines.append("🔮 [分析師 LSTM] (Fixed 模型)")
     current_close = float(c)
