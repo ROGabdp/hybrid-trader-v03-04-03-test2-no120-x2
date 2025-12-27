@@ -264,11 +264,18 @@ _LSTM_MODELS = {
     'loaded': False
 }
 
-def load_best_lstm_models():
+def load_best_lstm_models(target_date=None):
     """載入 LSTM 模型"""
     global _LSTM_MODELS
     if _LSTM_MODELS['loaded']:
-        return True
+        # If loaded, check if we need to reload for a different date? 
+        # For simplicity, if target_date is different, we should probably reload, 
+        # but the simple check might be enough if we restart script.
+        # But to be safe for this script usage, let's allow reload if forced or just assume script starts fresh.
+        # However, checking against loaded metadata might be complex here.
+        # Let's assume for this specific task, we call it once. 
+        pass
+        # (If we wanted to be robust, we'd check if loaded models match target_date criteria)
     
     print("\n[System] Loading LSTM Models...")
     try:
@@ -277,8 +284,11 @@ def load_best_lstm_models():
         import twii_model_registry_20d as lstm_20d_module
         from datetime import date
         
+        use_date = target_date if target_date else date.today()
+        print(f"[System] Selecting models available before: {use_date}")
+        
         # 1. T+1 Model
-        meta_1d = lstm_1d_module.select_best_model(date.today())
+        meta_1d = lstm_1d_module.select_best_model(use_date)
         if meta_1d is None:
             return False
         model_1d, scaler_feat_1d, scaler_tgt_1d, _ = lstm_1d_module.load_artifacts(
@@ -286,7 +296,7 @@ def load_best_lstm_models():
         print(f"  ✅ T+1 Model: {meta_1d['train_start']} ~ {meta_1d['train_end']}")
         
         # 2. T+5 Model
-        meta_5d = lstm_5d_module.select_best_model(date.today())
+        meta_5d = lstm_5d_module.select_best_model(use_date)
         if meta_5d is None:
             return False
         model_5d, scaler_feat_5d, scaler_tgt_5d, _ = lstm_5d_module.load_artifacts(
@@ -294,7 +304,7 @@ def load_best_lstm_models():
         print(f"  ✅ T+5 Model: {meta_5d['train_start']} ~ {meta_5d['train_end']}")
 
         # 3. T+20 Model
-        meta_20d = lstm_20d_module.select_best_model(date.today())
+        meta_20d = lstm_20d_module.select_best_model(use_date)
         if meta_20d is None:
             print("[Warning] No T+20 Model found. RL features will be incomplete.")
             return False
